@@ -1,0 +1,6 @@
+{
+  "name": "스마트 MES 생산 스케줄링 & 공정 트래킹 시스템",
+  "description": "생산 기획에서 최종 출하까지 8단계 전 공정(소재가공, 1차가공, 정밀가공, ED, EP, CMP, 세정, 포장) 실시간 시각화, 설비 ST 연동, 병목 분석 및 권한 제어 MES 대시보드",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
