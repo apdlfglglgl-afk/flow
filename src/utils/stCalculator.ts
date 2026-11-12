@@ -8,6 +8,7 @@ import {
   WorkOrder,
   BottleneckAnalysis
 } from '../types/mes';
+import { getStepDwellDays } from './dwellTime';
 
 /**
  * Calculates planned ST (Standard Time) in minutes for a specific stage
@@ -118,15 +119,18 @@ export function analyzeBottlenecks(workOrders: WorkOrder[]): BottleneckAnalysis[
     let delayedCount = 0;
 
     let totalDwellDays = 0;
+    let dwellStepsCount = 0;
     let longRetentionCount = 0;
 
     for (const order of workOrders) {
       const step = order.steps.find(s => s.stage === stage);
       if (!step) continue;
 
-      if (step.dwellDays) {
-        totalDwellDays += step.dwellDays;
-        if (step.dwellDays >= 10 || step.isLongRetention) {
+      const dwellDays = getStepDwellDays(step);
+      if (dwellDays !== null) {
+        totalDwellDays += dwellDays;
+        dwellStepsCount++;
+        if (dwellDays >= 10 || step.isLongRetention) {
           longRetentionCount++;
         }
       }
@@ -158,7 +162,7 @@ export function analyzeBottlenecks(workOrders: WorkOrder[]): BottleneckAnalysis[
       ? Math.round((delayedCount / (completedStepsCount + inProgressCount)) * 100)
       : 0;
 
-    const avgDwellDays = workOrders.length > 0 ? Math.round((totalDwellDays / workOrders.length) * 10) / 10 : 1.0;
+    const avgDwellDays = dwellStepsCount > 0 ? Math.round((totalDwellDays / dwellStepsCount) * 10) / 10 : 0;
     const avgSTHours = Math.round((actualAvgTime / 60) * 10) / 10;
     const stVsDwellRatio = avgSTHours > 0 ? Math.round((avgDwellDays * 24) / avgSTHours) : 1;
 
@@ -172,9 +176,9 @@ export function analyzeBottlenecks(workOrders: WorkOrder[]): BottleneckAnalysis[
 
     let recommendation = '공정이 계획된 ST 내에서 안정적으로 운영되고 있습니다.';
     if (longRetentionCount > 0) {
-      recommendation = `🚨 10일 초과 장기 체류 건수 ${longRetentionCount}건 발생! (평균 체류 ${avgDwellDays}일 vs 순수 가공 ${avgSTHours}시간, 체류 배율 ${stVsDwellRatio}배). 외주사 지연 및 공정 정체 구간 긴급 점검 필요.`;
+      recommendation = `🚨 10일 초과 장기 체류 건수 ${longRetentionCount}건 발생! (평균 체류 ${avgDwellDays}일 vs 순수 가공 ${avgSTHours}시간, 체류 배율 ${stVsDwellRatio}배) 즉시 원인 분석 및 작업 우선순위 조정이 필요합니다.`;
     } else if (isCritical) {
-      recommendation = `⚠️ ${stage} 공정에 심각한 병목이 감지되었습니다. 실 소요시간이 ST 대비 ${Math.round(stDeviationRatio * 100)}% 초과되었으며 대기 물량이 집중되어 예비 설비 투입 또는 파라미터 최적화가 시급합니다.`;
+      recommendation = `⚠️ ${stage} 공정에 심각한 병목이 감지되었습니다. 실 소요시간이 ST 대비 ${Math.round(stDeviationRatio * 100)}% 초과되었으며 대기 물량을 확인하세요.`;
     } else if (isWarning) {
       recommendation = `주의: ${stage} 공정에 대기 물량이 누적되고 있습니다. 작업자 추가 배치 및 치구 사전 셋업 점검을 권장합니다.`;
     }
