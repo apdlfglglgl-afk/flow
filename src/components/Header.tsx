@@ -110,17 +110,6 @@ export const Header: React.FC<HeaderProps> = ({
               ST·LT 소요 & 병목 리포트
             </button>
             <button
-              onClick={() => onTabChange('operator')}
-              className={`hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap cursor-pointer pb-0.5 border-b-2 flex items-center gap-1.5 ${
-                currentTab === 'operator' 
-                  ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold' 
-                  : 'border-transparent'
-              }`}
-            >
-              <HardHat className="w-3.5 h-3.5" />
-              현장 작업자 모드
-            </button>
-            <button
               onClick={() => onTabChange('audit')}
               className={`hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap cursor-pointer pb-0.5 border-b-2 ${
                 currentTab === 'audit' 
@@ -258,14 +247,6 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             ST·LT 분석
-          </button>
-          <button
-            onClick={() => onTabChange('operator')}
-            className={`px-3 py-1 text-xs whitespace-nowrap rounded-md ${
-              currentTab === 'operator' ? 'bg-emerald-600 text-white' : 'text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            작업자 모드
           </button>
           <button
             onClick={() => onTabChange('audit')}
