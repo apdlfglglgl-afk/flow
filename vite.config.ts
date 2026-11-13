@@ -1,10 +1,14 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
-base: process.env.GITHUB_ACTIONS ? '/flow/' : '/',
+import { defineConfig } from 'vite';
+
 export default defineConfig(() => {
+  const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
+
   return {
+    // GitHub Pages serves this project from /flow/, not from the domain root.
+    base: isGithubActions ? '/flow/' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
