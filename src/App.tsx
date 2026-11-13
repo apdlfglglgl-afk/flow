@@ -23,7 +23,6 @@ import { Header } from './components/Header';
 import { OverviewStats } from './components/OverviewStats';
 import { ProcessPipelineVisualizer } from './components/ProcessPipelineVisualizer';
 import { WorkOrderTable } from './components/WorkOrderTable';
-import { OperatorKioskView } from './components/OperatorKioskView';
 import { BottleneckReportView } from './components/BottleneckReportView';
 import { OutsourcingDashboardView } from './components/OutsourcingDashboardView';
 import { OctoberTimelineSimulator } from './components/OctoberTimelineSimulator';

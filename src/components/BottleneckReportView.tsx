@@ -45,11 +45,22 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
     return workOrders.filter(o => o.hasLongRetentionAlert).length;
   }, [workOrders]);
 
-  // Aggregate ST vs Transfer vs Total LT across all work orders
+  // Helper to split queueMinutes into internal process wait vs outsourcing wait
+  const getWaitBreakdownMins = (o: WorkOrder) => {
+    const totalQueueMins = o.queueMinutes || 0;
+    const outsourcingWaitMins = o.subcontractor
+      ? Math.min(totalQueueMins, Math.round((o.subcontractorLeadDays || 0) * 24 * 60))
+      : 0;
+    const processWaitMins = Math.max(0, totalQueueMins - outsourcingWaitMins);
+    return { processWaitMins, outsourcingWaitMins };
+  };
+
+  // Aggregate ST vs Transfer vs Process Wait vs Outsourcing Wait vs Total LT across all work orders
   const ltMacroStats = useMemo(() => {
     let totalNetSTMins = 0;
     let totalTransferMins = 0;
-    let totalQueueMins = 0;
+    let totalProcessWaitMins = 0;
+    let totalOutsourcingWaitMins = 0;
     let totalLTHours = 0;
     let totalLTDays = 0;
     let excludedCount = 0;
@@ -57,7 +68,9 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
     workOrders.forEach(o => {
       totalNetSTMins += o.netSTMinutes || 0;
       totalTransferMins += o.transferMinutes || 0;
-      totalQueueMins += o.queueMinutes || 0;
+      const { processWaitMins, outsourcingWaitMins } = getWaitBreakdownMins(o);
+      totalProcessWaitMins += processWaitMins;
+      totalOutsourcingWaitMins += outsourcingWaitMins;
       totalLTHours += o.totalLeadTimeHours || (o.leadTimeDays || 0) * 24;
       totalLTDays += o.leadTimeDays || 0;
       if (o.isLTExcluded) excludedCount++;
@@ -66,25 +79,29 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
     const count = workOrders.length || 1;
     const avgNetSTHours = (totalNetSTMins / count / 60);
     const avgTransferHours = (totalTransferMins / count / 60);
-    const avgQueueHours = (totalQueueMins / count / 60);
+    const avgProcessWaitHours = (totalProcessWaitMins / count / 60);
+    const avgOutsourcingWaitHours = (totalOutsourcingWaitMins / count / 60);
     const avgLTHours = (totalLTHours / count);
     const avgLTDays = (totalLTDays / count).toFixed(1);
 
-    const sumTotalMins = totalNetSTMins + totalTransferMins + totalQueueMins || 1;
+    const sumTotalMins = totalNetSTMins + totalTransferMins + totalProcessWaitMins + totalOutsourcingWaitMins || 1;
     const stRatio = Math.round((totalNetSTMins / sumTotalMins) * 100);
     const transferRatio = Math.round((totalTransferMins / sumTotalMins) * 100);
-    const queueRatio = Math.max(1, 100 - stRatio - transferRatio);
+    const processWaitRatio = Math.round((totalProcessWaitMins / sumTotalMins) * 100);
+    const outsourcingWaitRatio = Math.max(0, 100 - stRatio - transferRatio - processWaitRatio);
 
     return {
       count,
       avgLTDays,
       avgNetSTHours: avgNetSTHours.toFixed(1),
       avgTransferHours: avgTransferHours.toFixed(1),
-      avgQueueHours: avgQueueHours.toFixed(1),
+      avgProcessWaitHours: avgProcessWaitHours.toFixed(1),
+      avgOutsourcingWaitHours: avgOutsourcingWaitHours.toFixed(1),
       avgLTHours: avgLTHours.toFixed(1),
       stRatio,
       transferRatio,
-      queueRatio,
+      processWaitRatio,
+      outsourcingWaitRatio,
       excludedCount
     };
   }, [workOrders]);
@@ -122,28 +139,33 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
       '외주처',
       '순수ST가공시간(분)',
       '물류이동시간(분)',
-      '대기및체류시간(분)',
+      '공정대기시간(분)',
+      '외주대기시간(분)',
       '총경과LT(일)',
       'LT제외여부',
       '제외차감일수',
       '실인정LT(일)',
       '제외사유'
     ];
-    const rows = workOrders.map(o => [
-      o.orderNumber,
-      o.barcode || '',
-      o.productName,
-      o.quantity,
-      o.subcontractor || '사내가공',
-      o.netSTMinutes || 0,
-      o.transferMinutes || 0,
-      o.queueMinutes || 0,
-      o.leadTimeDays || 0,
-      o.isLTExcluded ? '제외승인' : '정상',
-      o.ltExclusionDays || 0,
-      o.adjustedLeadTimeDays || o.leadTimeDays || 0,
-      `"${(o.ltExclusionReason || '').replace(/"/g, '""')}"`
-    ]);
+    const rows = workOrders.map(o => {
+      const { processWaitMins, outsourcingWaitMins } = getWaitBreakdownMins(o);
+      return [
+        o.orderNumber,
+        o.barcode || '',
+        o.productName,
+        o.quantity,
+        o.subcontractor || '사내가공',
+        o.netSTMinutes || 0,
+        o.transferMinutes || 0,
+        processWaitMins,
+        outsourcingWaitMins,
+        o.leadTimeDays || 0,
+        o.isLTExcluded ? '제외승인' : '정상',
+        o.ltExclusionDays || 0,
+        o.adjustedLeadTimeDays || o.leadTimeDays || 0,
+        `"${(o.ltExclusionReason || '').replace(/"/g, '""')}"`
+      ];
+    });
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -167,7 +189,7 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
               </h2>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              실제 설비 가공 ST 시간과 공정간 이동 물류 시간, 버퍼 대기 시간을 독립 분리하여 총 LT를 정밀 진단하고 기준 초과 시 사유 등록 및 제외를 관리합니다.
+              실제 설비 가공 ST 시간, 공정간 이동 물류 시간, 사내 공정대기 시간, 협력사 외주대기 시간을 독립 분리하여 총 LT를 정밀 진단하고 기준 초과 시 사유 등록 및 제외를 관리합니다.
             </p>
           </div>
 
@@ -224,7 +246,7 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-center">
                   <div className="text-[10px] text-slate-400 uppercase">평균 총 Lead Time</div>
                   <div className="text-lg font-black text-white tabular-nums mt-0.5">{ltMacroStats.avgLTDays} <span className="text-xs font-normal text-slate-400">일</span></div>
@@ -243,17 +265,23 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
                   <div className="text-[10px] text-amber-300/80 font-bold">{ltMacroStats.transferRatio}% 점유</div>
                 </div>
 
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-cyan-900/40 text-center">
+                  <div className="text-[10px] text-cyan-400 uppercase">공정 대기시간</div>
+                  <div className="text-lg font-black text-cyan-400 tabular-nums mt-0.5">{ltMacroStats.avgProcessWaitHours} <span className="text-xs font-normal text-slate-400">시간</span></div>
+                  <div className="text-[10px] text-cyan-300/80 font-bold">{ltMacroStats.processWaitRatio}% 점유</div>
+                </div>
+
                 <div className="bg-slate-950 p-2.5 rounded-lg border border-purple-900/40 text-center">
-                  <div className="text-[10px] text-purple-400 uppercase">버퍼대기 & 외주체류</div>
-                  <div className="text-lg font-black text-purple-400 tabular-nums mt-0.5">{ltMacroStats.avgQueueHours} <span className="text-xs font-normal text-slate-400">시간</span></div>
-                  <div className="text-[10px] text-purple-300/80 font-bold">{ltMacroStats.queueRatio}% 점유</div>
+                  <div className="text-[10px] text-purple-400 uppercase">외주 대기시간</div>
+                  <div className="text-lg font-black text-purple-400 tabular-nums mt-0.5">{ltMacroStats.avgOutsourcingWaitHours} <span className="text-xs font-normal text-slate-400">시간</span></div>
+                  <div className="text-[10px] text-purple-300/80 font-bold">{ltMacroStats.outsourcingWaitRatio}% 점유</div>
                 </div>
               </div>
             </div>
 
             {/* Proportion Bar */}
             <div className="mt-4 pt-4 border-t border-slate-800">
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5 font-medium">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 mb-1.5 font-medium">
                 <span className="flex items-center gap-1 text-blue-400">
                   <span className="h-2 w-2 rounded-full bg-blue-500" />
                   순수 가공 ST ({ltMacroStats.stRatio}%)
@@ -262,15 +290,20 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
                   <span className="h-2 w-2 rounded-full bg-amber-500" />
                   공정간 이동물류 ({ltMacroStats.transferRatio}%)
                 </span>
+                <span className="flex items-center gap-1 text-cyan-400">
+                  <span className="h-2 w-2 rounded-full bg-cyan-500" />
+                  공정 대기시간 ({ltMacroStats.processWaitRatio}%)
+                </span>
                 <span className="flex items-center gap-1 text-purple-400">
                   <span className="h-2 w-2 rounded-full bg-purple-500" />
-                  버퍼 대기 및 외주 체류 ({ltMacroStats.queueRatio}%)
+                  외주 대기시간 ({ltMacroStats.outsourcingWaitRatio}%)
                 </span>
               </div>
               <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden flex shadow-inner">
                 <div style={{ width: `${ltMacroStats.stRatio}%` }} className="bg-blue-500 h-full transition-all" title="순수 ST 가공" />
                 <div style={{ width: `${ltMacroStats.transferRatio}%` }} className="bg-amber-500 h-full transition-all" title="공정간 이동" />
-                <div style={{ width: `${ltMacroStats.queueRatio}%` }} className="bg-purple-600 h-full transition-all" title="버퍼 대기 및 외주" />
+                <div style={{ width: `${ltMacroStats.processWaitRatio}%` }} className="bg-cyan-500 h-full transition-all" title="공정 대기시간" />
+                <div style={{ width: `${ltMacroStats.outsourcingWaitRatio}%` }} className="bg-purple-600 h-full transition-all" title="외주 대기시간" />
               </div>
             </div>
           </div>
@@ -376,7 +409,8 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
                     <th className="px-4 py-3">가공 형태 / 외주처</th>
                     <th className="px-4 py-3 text-right">실제 ST 가공</th>
                     <th className="px-4 py-3 text-right">이동중 소요시간</th>
-                    <th className="px-4 py-3 text-right">대기 & 외주체류</th>
+                    <th className="px-4 py-3 text-right">공정 대기시간</th>
+                    <th className="px-4 py-3 text-right">외주 대기시간</th>
                     <th className="px-4 py-3 text-center">총 Lead Time</th>
                     <th className="px-4 py-3">LT 제외 및 인정 일수</th>
                     <th className="px-4 py-3 text-center">LT 관리</th>
@@ -386,7 +420,9 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
                   {filteredWorkOrders.map((order) => {
                     const netSTHours = ((order.netSTMinutes || 0) / 60).toFixed(1);
                     const transferHours = ((order.transferMinutes || 0) / 60).toFixed(1);
-                    const queueHours = ((order.queueMinutes || 0) / 60).toFixed(1);
+                    const { processWaitMins, outsourcingWaitMins } = getWaitBreakdownMins(order);
+                    const processWaitHours = (processWaitMins / 60).toFixed(1);
+                    const outsourcingWaitHours = (outsourcingWaitMins / 60).toFixed(1);
                     const days = order.leadTimeDays || 0;
                     const isLongLT = days >= 22;
                     const isMediumLT = days >= 15 && days < 22;
@@ -451,8 +487,21 @@ export const BottleneckReportView: React.FC<BottleneckReportViewProps> = ({
                         </td>
 
                         <td className="px-4 py-3 text-right font-mono tabular-nums">
-                          <div className="font-semibold text-purple-300">{queueHours} 시간</div>
-                          <div className="text-[10px] text-slate-500">{order.queueMinutes}분</div>
+                          <div className="font-semibold text-cyan-400">{processWaitHours} 시간</div>
+                          <div className="text-[10px] text-slate-500">{processWaitMins}분</div>
+                        </td>
+
+                        <td className="px-4 py-3 text-right font-mono tabular-nums">
+                          {outsourcingWaitMins > 0 ? (
+                            <>
+                              <div className="font-semibold text-purple-300">{outsourcingWaitHours} 시간</div>
+                              <div className="text-[10px] text-slate-500">
+                                {outsourcingWaitMins}분 ({order.subcontractorLeadDays || 0}일)
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-slate-500 text-[11px]">0.0 시간</span>
+                          )}
                         </td>
 
                         <td className="px-4 py-3 text-center">

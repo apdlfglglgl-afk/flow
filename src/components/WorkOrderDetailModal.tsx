@@ -305,57 +305,28 @@ export const WorkOrderDetailModal: React.FC<WorkOrderDetailModalProps> = ({
                 {/* Horizontal scrollable integrated flow chain */}
                 <div className="flex items-stretch gap-1.5 overflow-x-auto p-2 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
                   {order.steps.map((step, idx) => {
-
-              const hasDwell =
-  (step.dwellDays ?? 0) > 0 ||
-  (step.dwellHours ?? 0) > 0 ||
-  step.isLongRetention === true;
-const transit = (order.interStageTransits || [])[idx];
-const transitHasDwell =
-  !!transit &&
-  ((transit.transitDays ?? 0) > 0 ||
-    (transit.transitHours ?? 0) > 0 ||
-    transit.isLongRetention === true);
-
-              className={`min-w-[130px] p-2.5 rounded-lg border text-xs flex flex-col justify-between shrink-0 ${
-  hasDwell
-    ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 ring-2 ring-rose-500/30'
-    : isDone
-    ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
-    : isRunning
-    ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-400 dark:border-blue-700 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/30'
-    : isStepDelayed
-    ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
-    : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-}`}
-
-                                   className={`min-w-[130px] p-2.5 rounded-lg border text-xs flex flex-col justify-between shrink-0 ${
-  hasDwell
-    ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 ring-2 ring-rose-500/30'
-    : isDone
-    ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
-    : isRunning
-    ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-400 dark:border-blue-700 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/30'
-    : isStepDelayed
-    ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
-    : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-}`}
-
-                  transitHasDwell
-  ? 'bg-rose-950/20 border-rose-800/80 text-rose-300'
-  : 'bg-amber-950/20 border-amber-800/60 text-amber-300'
-                  
                     const isDone = step.status === 'completed';
                     const isRunning = step.status === 'in_progress';
                     const isStepDelayed = step.status === 'delayed';
+                    const hasDwell =
+                      (step.dwellDays ?? 0) > 5 ||
+                      (step.dwellHours ?? 0) > 120 ||
+                      step.isLongRetention === true;
                     const transit = (order.interStageTransits || [])[idx];
+                    const transitHasDwell =
+                      !!transit &&
+                      ((transit.transitDays ?? 0) > 5 ||
+                        (transit.transitHours ?? 0) > 120 ||
+                        transit.isLongRetention === true);
 
                     return (
                       <React.Fragment key={step.stage}>
                         {/* Process Stage Card */}
                         <div
                           className={`min-w-[130px] p-2.5 rounded-lg border text-xs flex flex-col justify-between shrink-0 ${
-                            isDone
+                            hasDwell
+                              ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 ring-2 ring-rose-500/30'
+                              : isDone
                               ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
                               : isRunning
                               ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-400 dark:border-blue-700 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/30'
@@ -386,22 +357,26 @@ const transitHasDwell =
                             </div>
                             <div className="flex justify-between">
                               <span className="opacity-70">공정체류:</span>
-                              <span className={`font-mono font-bold ${step.isLongRetention ? 'text-rose-600 dark:text-rose-400 font-extrabold' : ''}`}>
+                              <span className={`font-mono font-bold ${hasDwell ? 'text-rose-600 dark:text-rose-400 font-extrabold' : ''}`}>
                                 {step.dwellDays ?? 0}일
                               </span>
                             </div>
-                            {step.isLongRetention && (
+                            {step.isLongRetention ? (
                               <div className="text-[9px] text-rose-600 dark:text-rose-400 font-bold bg-rose-100 dark:bg-rose-950/80 px-1 py-0.5 rounded text-center">
                                 🚨 10일+ 알람
                               </div>
-                            )}
+                            ) : hasDwell ? (
+                              <div className="text-[9px] text-rose-600 dark:text-rose-400 font-bold bg-rose-100 dark:bg-rose-950/80 px-1 py-0.5 rounded text-center">
+                                ⚠️ 5일 초과 체류
+                              </div>
+                            ) : null}
                           </div>
                         </div>
 
                         {/* Inter-Stage Transit Arrow Card (if between stages) */}
                         {transit && (
                           <div className={`min-w-[110px] p-2 rounded-lg border text-[10px] flex flex-col justify-between shrink-0 ${
-                            transit.isLongRetention
+                            transitHasDwell
                               ? 'bg-rose-950/20 border-rose-800/80 text-rose-300'
                               : 'bg-amber-950/20 border-amber-800/60 text-amber-300'
                           }`}>
