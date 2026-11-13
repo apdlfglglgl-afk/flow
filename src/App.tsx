@@ -623,19 +623,7 @@ export default function App() {
           />
         )}
 
-        {/* Tab 5: Dedicated Operator Kiosk */}
-        {currentTab === 'operator' && (
-          <OperatorKioskView
-            workOrders={workOrders}
-            equipmentList={equipmentList}
-            operatorName={userRole === 'admin' ? '박성민 생산팀장' : '정진현 선임작업자'}
-            onStartStep={handleStartStep}
-            onCompleteStep={handleCompleteStep}
-            onSelectOrder={(order) => setSelectedOrderDetail(order)}
-          />
-        )}
-
-        {/* Tab 6: ST/LT Analysis & Bottleneck Report */}
+        {/* Tab 5: ST/LT Analysis & Bottleneck Report */}
         {currentTab === 'bottleneck' && (
           <BottleneckReportView
             workOrders={workOrders}
@@ -648,7 +636,7 @@ export default function App() {
           />
         )}
 
-        {/* Tab 7: Audit Log View */}
+        {/* Tab 6: Audit Log View */}
         {currentTab === 'audit' && (
           <AuditLogView
             logs={auditLogs}
